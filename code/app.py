@@ -160,6 +160,16 @@ def add_to_vector_store(file, vector_store, chunk_size=1000, chunk_overlap=200):
             accuracy = accuracy_score(y_test, y_pred)
             print(f"Accuracy of Passive-Aggressive Classifier: {accuracy * 100:.2f}%")
 
+            # Compute confusion matrix
+            cm = confusion_matrix(y_test, y_pred)
+            print(f"Confusion Matrix:\n{cm}")
+
+            # Display the confusion matrix
+            cm_display = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=pac.classes_)
+            cm_display.plot(cmap=plt.cm.Blues)
+            plt.title("Confusion Matrix")
+            plt.show()
+
             # Now classify the documents using the trained classifier
             document_labels = pac.predict(tfidf_matrix)
 
