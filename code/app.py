@@ -57,6 +57,35 @@ def add_to_vector_store(file, vector_store, chunk_size=1000, chunk_overlap=200):
         # Delete the temporary file
         tmp.close()
         os.unlink(tmp_file_path)
+
+
+
+
+# Code for cleaning the data for futher processing to use TF-IDF Vectorizer for finding keywords
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+import string
+
+# Downloading the required packages
+nltk.download('stopwords')
+nltk.download('wordnet')
+
+def clean_text(text):
+    if isinstance(text, float):
+        text = str(text)
+        
+    text = text.lower()
+    text = re.sub(r'[^\w\s]', '', text)
+    text = re.sub(r'\d+', '', text)
+    words = text.split()
+    
+    lemmatizer = WordNetLemmatizer()
+    stop_words = set(stopwords.words('english'))
+    
+    cleaned_words = [lemmatizer.lemmatize(word) for word in words if word not in stop_words]
+    cleaned_text = ' '.join(cleaned_words)
+    
+    return
   
 # ---------------------------- 2 - Query Processing ----------------------------
 
