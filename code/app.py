@@ -15,48 +15,6 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 # ---------------------------- 1 - Data Ingestion ----------------------------
 
 # Function to load the file, split it into chunks, and add them to the vector store
-def add_to_vector_store(file, vector_store, chunk_size=1000, chunk_overlap=200):
-    if file:
-        # Use tempfile because Langchain Loaders only accept a file_path
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            tmp.write(file.getvalue())
-            tmp_file_path = tmp.name
-
-        # Use Langchain Loaders to load the file into a Document object (which stores page content and metadata)
-        if file.type == "application/pdf":
-            loader = PyPDFLoader(file_path = tmp_file_path)
-        elif file.type == "application/json":
-            loader = JSONLoader(file_path = tmp_file_path, jq_schema=".", text_content=False)
-        elif file.type == "text/markdown":
-            loader = UnstructuredMarkdownLoader(file_path = tmp_file_path)        
-        else:
-            loader = TextLoader(file_path = tmp_file_path)
-
-        data = loader.load()
-
-        # Replace temporary file name with original file name in documents' metadata
-        for document in data:
-            document.metadata["source"] = file.name
-
-        print(f"Loaded {len(data)} documents from {file.name}")
-        # Use Langchain Text Splitter to split the document into smaller chunks
-        splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, 
-                                                  chunk_overlap=chunk_overlap,
-                                                  add_start_index=True,  # track index in original document
-                                                )
-        chunked_data = splitter.split_documents(data)
-        
-        print(f"Chunked {file.name} into {len(chunked_data)} pieces")
-
-        # Upload the chunked data to the ChromaDB collection
-        uuids = [file.name + str(uuid4()) for _ in range(len(chunked_data))]
-        vector_store.add_documents(documents=chunked_data, ids=uuids)
-
-        print(f"Uploaded {file.name} to ChromaDB")
-        
-        # Delete the temporary file
-        tmp.close()
-        os.unlink(tmp_file_path)
 
 
 
@@ -85,8 +43,127 @@ def clean_text(text):
     cleaned_words = [lemmatizer.lemmatize(word) for word in words if word not in stop_words]
     cleaned_text = ' '.join(cleaned_words)
     
-    return
-  
+    return cleaned_text
+
+def add_to_vector_store(file, vector_store, chunk_size=1000, chunk_overlap=200):
+    if file:
+        # Use tempfile because Langchain Loaders only accept a file_path
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(file.getvalue())
+            tmp_file_path = tmp.name
+
+        # Use Langchain Loaders to load the file into a Document object (which stores page content and metadata)
+        if file.type == "application/pdf":
+            loader = PyPDFLoader(file_path = tmp_file_path)
+        elif file.type == "application/json":
+            loader = JSONLoader(file_path = tmp_file_path, jq_schema=".", text_content=False)
+        elif file.type == "text/markdown":
+            loader = UnstructuredMarkdownLoader(file_path = tmp_file_path)        
+        else:
+            loader = TextLoader(file_path = tmp_file_path)
+
+        data = loader.load()
+
+        # Replace temporary file name with original file name in documents' metadata
+        for document in data:
+            document.metadata["source"] = file.name
+            document.page_content = clean_text(document.page_content)
+
+        print(f"Cleaned text content for {file.name}")
+
+        print(f"Loaded {len(data)} documents from {file.name}")
+        # Use Langchain Text Splitter to split the document into smaller chunks
+        splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, 
+                                                  chunk_overlap=chunk_overlap,
+                                                  add_start_index=True,  # track index in original document
+                                                )
+        chunked_data = splitter.split_documents(data)
+        
+        print(f"Chunked {file.name} into {len(chunked_data)} pieces")
+
+        # Upload the chunked data to the ChromaDB collection
+        uuids = [file.name + str(uuid4()) for _ in range(len(chunked_data))]
+        vector_store.add_documents(documents=chunked_data, ids=uuids)
+
+        print(f"Uploaded {file.name} to ChromaDB")
+        
+        # Delete the temporary file
+        tmp.close()
+        os.unlink(tmp_file_path)
+
+
+# Code for TF-IDF Vectorizer (This is used to finding the frequency of how many times each word appears, this will then be used to pickup keywords from the text and provide the appropiate answers)
+
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import PassiveAggressiveClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix
+
+# Function to load the file, clean the text, apply TF-IDF, split into chunks, and add to the vector store
+def add_to_vector_store(file, vector_store, chunk_size=1000, chunk_overlap=200):
+    if file:
+        # Use tempfile because Langchain Loaders only accept a file_path
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(file.getvalue())
+            tmp_file_path = tmp.name
+
+        # Use Langchain Loaders to load the file into a Document object (which stores page content and metadata)
+        if file.type == "application/pdf":
+            loader = PyPDFLoader(file_path=tmp_file_path)
+        elif file.type == "application/json":
+            loader = JSONLoader(file_path=tmp_file_path, jq_schema=".", text_content=False)
+        elif file.type == "text/markdown":
+            loader = UnstructuredMarkdownLoader(file_path=tmp_file_path)        
+        else:
+            loader = TextLoader(file_path=tmp_file_path)
+
+        data = loader.load()
+
+        # Replace temporary file name with original file name in documents' metadata
+        for document in data:
+            document.metadata["source"] = file.name
+
+        print(f"Loaded {len(data)} documents from {file.name}")
+
+        # Clean the text content of the documents before splitting them
+        for document in data:
+            document.page_content = clean_text(document.page_content)
+
+        print(f"Cleaned text content for {file.name}")
+
+        # Extract text content for TF-IDF Vectorization
+        cleaned_texts = [document.page_content for document in data]
+
+        # Apply TF-IDF Vectorizer
+        vectorizer = TfidfVectorizer()
+        tfidf_matrix = vectorizer.fit_transform(cleaned_texts)
+
+        print(f"Applied TF-IDF Vectorizer to {file.name}")
+
+        # Add TF-IDF vectors to document metadata (you can choose to store it as is or process further)
+        for idx, document in enumerate(data):
+            document.metadata["tfidf_vector"] = tfidf_matrix[idx].toarray().flatten()
+
+        # Use Langchain Text Splitter to split the document into smaller chunks
+        splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, 
+                                                  chunk_overlap=chunk_overlap,
+                                                  add_start_index=True,  # track index in original document
+                                                )
+        chunked_data = splitter.split_documents(data)
+        
+        print(f"Chunked {file.name} into {len(chunked_data)} pieces")
+
+        # Upload the chunked data to the ChromaDB collection
+        uuids = [file.name + str(uuid4()) for _ in range(len(chunked_data))]
+        vector_store.add_documents(documents=chunked_data, ids=uuids)
+
+        print(f"Uploaded {file.name} to ChromaDB")
+        
+        # Delete the temporary file
+        tmp.close()
+        os.unlink(tmp_file_path)
+
+
 # ---------------------------- 2 - Query Processing ----------------------------
 
 def rewrite_query(user_query, llm):
