@@ -1,6 +1,9 @@
 import streamlit as st
 import os
 import tempfile
+import pandas as pd
+import numpy as np
+import nltk
 from uuid import uuid4
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredMarkdownLoader, JSONLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
