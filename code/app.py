@@ -140,6 +140,29 @@ def add_to_vector_store(file, vector_store, chunk_size=1000, chunk_overlap=200):
 
         print(f"Applied TF-IDF Vectorizer to {file.name}")
 
+                # If training the classifier, we need labeled data
+        if train_classifier and labeled_data is not None:
+            # Assuming labeled_data is a DataFrame with columns: 'text' and 'label'
+            X_train, X_test, y_train, y_test = train_test_split(labeled_data['text'], labeled_data['label'], test_size=0.2, random_state=42)
+
+            # Fit TF-IDF on the training data and transform the text
+            X_train_tfidf = vectorizer.fit_transform(X_train)
+            X_test_tfidf = vectorizer.transform(X_test)
+
+            # Initialize and train the Passive-Aggressive Classifier
+            pac = PassiveAggressiveClassifier(max_iter=50)
+            pac.fit(X_train_tfidf, y_train)
+
+            # Predict the labels for the test data
+            y_pred = pac.predict(X_test_tfidf)
+
+            # Evaluate the classifier's accuracy
+            accuracy = accuracy_score(y_test, y_pred)
+            print(f"Accuracy of Passive-Aggressive Classifier: {accuracy * 100:.2f}%")
+
+            # Now classify the documents using the trained classifier
+            document_labels = pac.predict(tfidf_matrix)
+
         # Add TF-IDF vectors to document metadata (you can choose to store it as is or process further)
         for idx, document in enumerate(data):
             document.metadata["tfidf_vector"] = tfidf_matrix[idx].toarray().flatten()
